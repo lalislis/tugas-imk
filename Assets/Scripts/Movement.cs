@@ -5,10 +5,13 @@ using UnityEngine;
 
 public class Movement : MonoBehaviour
 {
-    [SerializeField] private int speed = 10;
+    private float speed;
+    [SerializeField] private float rotationSpeed;
+    [SerializeField] private float walkSpeed = 3f;
+    [SerializeField] private float runSpeed = 5f;
     [SerializeField] private bool usePhysics = true;
 
-    private float jumpSpeed = 7000f;
+    private float jumpSpeed = 200;
 
     private bool canJump;
 
@@ -17,10 +20,14 @@ public class Movement : MonoBehaviour
     private Controls _controls;
     private Animator _animator;
     private static readonly int IsWalking = Animator.StringToHash("isWalking");
+    private static readonly int IsRunning = Animator.StringToHash("isRunning");
+    private static readonly int IsJumping = Animator.StringToHash("isJumping");
+    private static readonly int IsRunningJumping = Animator.StringToHash("isRunningJumping");
 
     private void Awake()
     {
         _controls = new Controls();
+        _rb = GetComponent<Rigidbody>();
     }
 
     private void OnEnable()
@@ -40,40 +47,19 @@ public class Movement : MonoBehaviour
         _mainCamera = Camera.main;
         _rb = gameObject.GetComponent<Rigidbody>();
         _animator = gameObject.GetComponentInChildren<Animator>();
+        speed = walkSpeed;
     }
 
     private void Update()
     {
-        if (usePhysics)
-        {
+        if (!_controls.Player.Move.IsPressed()) {
             return;
         }
 
-        if (_controls.Player.Run.IsPressed()){
-            speed = 20;
-            CameraShake.Instance.ShakeCam(10f, 0.06f, 1f);
-        }
-
-        else{
-            speed = 10;
-        }
-
-        if (_controls.Player.Jump.IsPressed() & canJump){
-            _rb.AddForce(1f, jumpSpeed * Time.deltaTime, 2f);
-        }
-
-        if (_controls.Player.Move.IsPressed())
-        {
-            _animator.SetBool(IsWalking, true);
-            Vector2 input = _controls.Player.Move.ReadValue<Vector2>();
-            Vector3 target = HandleInput(input);
-            Move(target);
-        }
-
-        else
-        {
-            _animator.SetBool(IsWalking, false);
-        }
+        Vector2 input = _controls.Player.Move.ReadValue<Vector2>();
+        Vector3 target = HandleInput(input);
+        RotateCharacter(target);
+        
     }
 
     private void FixedUpdate()
@@ -82,18 +68,27 @@ public class Movement : MonoBehaviour
         {
             return;
         }
-        
-        if (_controls.Player.Run.IsPressed()){
-            speed = 20;
-            CameraShake.Instance.ShakeCam(10f, 0.06f, 1f);
-        }
-        
+
         else{
             speed = 10;
         }
+        
+        if (_controls.Player.Run.IsPressed()){
+            _animator.SetBool(IsRunning, true);
+            speed = runSpeed;
+            CameraShake.Instance.ShakeCam(10f, 0.06f, 1f);
+        }
+        else{
+            _animator.SetBool(IsRunning, false);
+            speed = walkSpeed;
+        }
 
         if (_controls.Player.Jump.IsPressed() & canJump){
-            _rb.AddForce(1f, jumpSpeed * Time.deltaTime, 2f);
+            if (!_animator.GetBool(IsJumping))
+            {
+                _animator.SetBool(IsJumping, false);
+            }
+            _rb.AddForce(Vector3.up * jumpSpeed);
         }
         
         if (_controls.Player.Move.IsPressed())
@@ -128,7 +123,14 @@ public class Movement : MonoBehaviour
 
     private void Move(Vector3 target)
     {
-        transform.position = target;
+        _rb.MovePosition(target);
+    }
+    void RotateCharacter(Vector3 target)
+    {
+        Vector3 lookAt = target - transform.position;
+        lookAt.y = 0;
+        Quaternion toRotation = Quaternion.LookRotation(lookAt);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, toRotation, rotationSpeed * Time.deltaTime);
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -136,6 +138,8 @@ public class Movement : MonoBehaviour
         if (collision.gameObject.CompareTag("Floor"))
         {
             canJump = true;
+            _animator.SetBool(IsJumping, false);
+            _animator.SetBool(IsRunningJumping, false);
         }
     }
 
@@ -144,6 +148,15 @@ public class Movement : MonoBehaviour
         if (collision.gameObject.CompareTag("Floor"))
         {
             canJump = false;
+            // if (_animator.GetBool(IsRunning)){
+            //     _animator.SetBool(IsRunningJumping, true);
+            //     _animator.SetBool(IsRunning, false);
+            // }
+            // else{
+            //    _animator.SetBool(IsJumping,true); 
+            // }
+            _animator.SetBool(IsJumping,true); 
+            
         }
     }
 
@@ -151,4 +164,6 @@ public class Movement : MonoBehaviour
     {
         _rb.MovePosition(target); 
     }
+
+    
 }
